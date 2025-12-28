@@ -1,89 +1,81 @@
 import fs from "fs";
 
-function rand(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
+function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-export function generateCryptoChange() {
-  const type = rand([
-    "contract",
-    "test",
-    "script",
-    "docs",
-    "config"
-  ]);
+const PROJECT_TYPE = process.env.PROJECT_TYPE || "defi"; // defi, l2, mev
 
+export function generateChange() {
   let file, content, summary;
 
-  if (type === "contract") {
-    file = `contracts/core/Module${Date.now()}.sol`;
-    content = `// SPDX-License-Identifier: MIT
+  if (PROJECT_TYPE === "defi") {
+    const type = rand(["contract", "test", "script", "docs"]);
+    if (type === "contract") {
+      file = `contracts/vault/Vault${Date.now()}.sol`;
+      content = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/// @notice Experimental module
-contract Module${Date.now()} {
-    uint256 internal constant BASE_FEE = 1000;
-
-    function compute(uint256 value) external pure returns (uint256) {
-        return value * BASE_FEE / 1e4;
-    }
-}
-`;
-    summary = "Add experimental core module";
-  }
-
-  if (type === "test") {
-    file = `test/unit/module-${Date.now()}.t.sol`;
-    content = `pragma solidity ^0.8.19;
-
+contract Vault${Date.now()} {
+    uint256 public totalStaked;
+    function deposit(uint256 amt) external { totalStaked += amt; }
+}`;
+      summary = "feat: add staking vault";
+    } else if (type === "test") {
+      file = `test/unit/vault-${Date.now()}.t.sol`;
+      content = `pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
-
-contract ModuleTest is Test {
-    function testBasicComputation() public {
-        assertEq(2 * 1000 / 1e4, 0);
+contract VaultTest is Test { function testDeposit() public {} }`;
+      summary = "test: add deposit unit test";
+    } else if (type === "script") {
+      file = `scripts/deploy/deploy-vault-${Date.now()}.s.sol`;
+      content = `pragma solidity ^0.8.19; contract Deploy { function run() external {} }`;
+      summary = "chore: deploy vault script";
+    } else {
+      file = `docs/economics/note-${Date.now()}.md`;
+      content = `# Vault Economics\n- Lockup: 7 days\n- APR: 12%`;
+      summary = "docs: add vault economics note";
     }
-}
-`;
-    summary = "Add unit test for module logic";
   }
 
-  if (type === "script") {
-    file = `scripts/deploy/deploy-${Date.now()}.s.sol`;
-    content = `pragma solidity ^0.8.19;
-
-import "forge-std/Script.sol";
-
-contract Deploy is Script {
-    function run() external {
-        vm.startBroadcast();
-        // deploy steps
-        vm.stopBroadcast();
+  if (PROJECT_TYPE === "l2") {
+    const type = rand(["contract", "test", "script", "docs"]);
+    if (type === "contract") {
+      file = `contracts/rollup/Rollup${Date.now()}.sol`;
+      content = `// L2 rollup module\npragma solidity ^0.8.19;\ncontract Rollup${Date.now()} {}`;
+      summary = "feat: add rollup module";
+    } else if (type === "script") {
+      file = `scripts/monitor/monitor-${Date.now()}.ts`;
+      content = `// monitor L2 state changes`;
+      summary = "chore: add L2 monitor script";
+    } else if (type === "test") {
+      file = `test/unit/rollup-${Date.now()}.t.sol`;
+      content = `// basic rollup tests`;
+      summary = "test: rollup unit test";
+    } else {
+      file = `docs/architecture/rollup-${Date.now()}.md`;
+      content = `# Rollup Architecture\n- Sequencer\n- Validator set`;
+      summary = "docs: outline rollup architecture";
     }
-}
-`;
-    summary = "Add deployment helper script";
   }
 
-  if (type === "docs") {
-    file = `docs/architecture/note-${Date.now()}.md`;
-    content = `# Architecture Note
-
-This document outlines assumptions around module isolation
-and state boundaries.
-
-- Minimal shared storage
-- Explicit external calls
-- Conservative defaults
-`;
-    summary = "Document architecture assumptions";
-  }
-
-  if (type === "config") {
-    file = `config/addresses.json`;
-    fs.mkdirSync("config", { recursive: true });
-    const data = { updatedAt: new Date().toISOString() };
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    summary = "Update network address config";
+  if (PROJECT_TYPE === "mev") {
+    const type = rand(["contract", "test", "script", "docs"]);
+    if (type === "contract") {
+      file = `contracts/arbitrage/Bot${Date.now()}.sol`;
+      content = `pragma solidity ^0.8.19;\ncontract Bot${Date.now()} {}`;
+      summary = "feat: add arbitrage bot module";
+    } else if (type === "script") {
+      file = `scripts/simulate/simulate-${Date.now()}.ts`;
+      content = `// simulate MEV bundles`;
+      summary = "chore: simulate bundles script";
+    } else if (type === "test") {
+      file = `test/unit/bot-${Date.now()}.t.sol`;
+      content = `// test bundle execution`;
+      summary = "test: add bot unit test";
+    } else {
+      file = `docs/strategies/note-${Date.now()}.md`;
+      content = `# MEV Strategy\n- Sniping\n- Sandwich attacks`;
+      summary = "docs: add MEV strategy note";
+    }
   }
 
   fs.mkdirSync(file.split("/").slice(0, -1).join("/"), { recursive: true });
