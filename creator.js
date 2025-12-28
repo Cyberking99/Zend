@@ -1,85 +1,58 @@
-import fs from "fs";
+import fs from "fs-extra";
+import OpenAI from "openai";
+import "dotenv/config";
 
-function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const PROJECT_TYPE = process.env.PROJECT_TYPE || "defi"; // defi, l2, mev
+const PROJECT_STYLE = process.env.PROJECT_STYLE || "defi";
 
-export function generateChange() {
-  let file, content, summary;
+const FILE_TYPES = ["contract", "test", "script", "docs"];
 
-  if (PROJECT_TYPE === "defi") {
-    const type = rand(["contract", "test", "script", "docs"]);
-    if (type === "contract") {
-      file = `contracts/vault/Vault${Date.now()}.sol`;
-      content = `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+function rand(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-contract Vault${Date.now()} {
-    uint256 public totalStaked;
-    function deposit(uint256 amt) external { totalStaked += amt; }
-}`;
-      summary = "feat: add staking vault";
-    } else if (type === "test") {
-      file = `test/unit/vault-${Date.now()}.t.sol`;
-      content = `pragma solidity ^0.8.19;
-import "forge-std/Test.sol";
-contract VaultTest is Test { function testDeposit() public {} }`;
-      summary = "test: add deposit unit test";
-    } else if (type === "script") {
-      file = `scripts/deploy/deploy-vault-${Date.now()}.s.sol`;
-      content = `pragma solidity ^0.8.19; contract Deploy { function run() external {} }`;
-      summary = "chore: deploy vault script";
-    } else {
-      file = `docs/economics/note-${Date.now()}.md`;
-      content = `# Vault Economics\n- Lockup: 7 days\n- APR: 12%`;
-      summary = "docs: add vault economics note";
-    }
+async function generateFileContent(fileType) {
+  let prompt;
+
+  switch(fileType) {
+    case "contract":
+      prompt = `Write a short, realistic ${PROJECT_STYLE} Solidity smart contract snippet. Include 1-2 functions, use best practices, and add minimal comments.`;
+      break;
+    case "test":
+      prompt = `Write a small test for a ${PROJECT_STYLE} Solidity contract using forge-std or Hardhat.`;
+      break;
+    case "script":
+      prompt = `Write a small deployment or simulation script for a ${PROJECT_STYLE} Solidity contract.`;
+      break;
+    case "docs":
+      prompt = `Write a short technical documentation note for a ${PROJECT_STYLE} blockchain project.`;
+      break;
+    default:
+      prompt = `Write a short technical snippet.`;
   }
 
-  if (PROJECT_TYPE === "l2") {
-    const type = rand(["contract", "test", "script", "docs"]);
-    if (type === "contract") {
-      file = `contracts/rollup/Rollup${Date.now()}.sol`;
-      content = `// L2 rollup module\npragma solidity ^0.8.19;\ncontract Rollup${Date.now()} {}`;
-      summary = "feat: add rollup module";
-    } else if (type === "script") {
-      file = `scripts/monitor/monitor-${Date.now()}.ts`;
-      content = `// monitor L2 state changes`;
-      summary = "chore: add L2 monitor script";
-    } else if (type === "test") {
-      file = `test/unit/rollup-${Date.now()}.t.sol`;
-      content = `// basic rollup tests`;
-      summary = "test: rollup unit test";
-    } else {
-      file = `docs/architecture/rollup-${Date.now()}.md`;
-      content = `# Rollup Architecture\n- Sequencer\n- Validator set`;
-      summary = "docs: outline rollup architecture";
-    }
-  }
+  const response = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 300,
+    temperature: 0.5
+  });
 
-  if (PROJECT_TYPE === "mev") {
-    const type = rand(["contract", "test", "script", "docs"]);
-    if (type === "contract") {
-      file = `contracts/arbitrage/Bot${Date.now()}.sol`;
-      content = `pragma solidity ^0.8.19;\ncontract Bot${Date.now()} {}`;
-      summary = "feat: add arbitrage bot module";
-    } else if (type === "script") {
-      file = `scripts/simulate/simulate-${Date.now()}.ts`;
-      content = `// simulate MEV bundles`;
-      summary = "chore: simulate bundles script";
-    } else if (type === "test") {
-      file = `test/unit/bot-${Date.now()}.t.sol`;
-      content = `// test bundle execution`;
-      summary = "test: add bot unit test";
-    } else {
-      file = `docs/strategies/note-${Date.now()}.md`;
-      content = `# MEV Strategy\n- Sniping\n- Sandwich attacks`;
-      summary = "docs: add MEV strategy note";
-    }
-  }
+  return response.choices[0].message.content.trim();
+}
 
-  fs.mkdirSync(file.split("/").slice(0, -1).join("/"), { recursive: true });
-  fs.writeFileSync(file, content);
+export async function generateCryptoFile() {
+  const type = rand(FILE_TYPES);
 
-  return summary;
+  let filePath;
+  if (type === "contract") filePath = `contracts/${PROJECT_STYLE}/Contract${Date.now()}.sol`;
+  if (type === "test") filePath = `test/${PROJECT_STYLE}/Test${Date.now()}.t.sol`;
+  if (type === "script") filePath = `scripts/${PROJECT_STYLE}/Script${Date.now()}.s.sol`;
+  if (type === "docs") filePath = `docs/${PROJECT_STYLE}/Doc${Date.now()}.md`;
+
+  const content = await generateFileContent(type);
+  await fs.outputFile(filePath, content);
+
+  return { filePath, type, content };
 }
