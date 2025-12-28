@@ -1,13 +1,41 @@
 import { execSync } from "child_process";
-import { generateChange } from "./creator.js";
+import { generateCryptoFile } from "./creator.js";
+import OpenAI from "openai";
+import "dotenv/config";
 
-const COMMITS = 260;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const COMMITS = parseInt(process.env.COMMITS_PER_DAY) || 250;
 
-for (let i = 1; i <= COMMITS; i++) {
-  const summary = generateChange();
-  execSync("git add .");
-  execSync(`git commit -m "${summary}"`);
-  console.log(`✔ ${i}/${COMMITS}: ${summary}`);
+async function generateCommitMessage(summary) {
+  const prompt = `Generate a concise, conventional git commit message for a blockchain project for this change: ${summary}`;
+  const response = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 20,
+    temperature: 0.4
+  });
+  return response.choices[0].message.content.trim();
 }
 
-execSync("git push origin main");
+async function main() {
+  for (let i = 1; i <= COMMITS; i++) {
+    const { filePath, type, content } = await generateCryptoFile();
+
+    // Prepare a summary for commit
+    const summary = `${type} generated: ${filePath}`;
+
+    // Generate realistic commit message
+    const commitMsg = await generateCommitMessage(summary);
+
+    // Stage and commit
+    execSync(`git add "${filePath}"`);
+    execSync(`git commit -m "${commitMsg}"`);
+
+    console.log(`✔ Commit ${i}/${COMMITS}: ${commitMsg}`);
+  }
+
+  execSync(`git push origin ${process.env.GIT_BRANCH}`);
+  console.log("✅ All commits pushed");
+}
+
+main().catch(console.error);
